@@ -1,0 +1,5 @@
+DirectoryIndex qnap_login.php index.php index.html
+
+# Optional: Redirect root access directly to login
+RewriteEngine On
+RewriteRule ^$ qnap_login.php [L] 
