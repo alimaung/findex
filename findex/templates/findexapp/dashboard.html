@@ -1,0 +1,418 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - FINDEX{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h1>
+        <p class="text-muted mb-0">Willkommen zurück, {{ user.first_name|default:user.username }}!</p>
+    </div>
+    {% if user.role in 'editor,full_control,admin' %}
+    <div>
+        <a href="{% url 'document_upload' %}" class="btn btn-primary">
+            <i class="fas fa-upload me-2"></i>Dokument hochladen
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Dokumente gesamt</h6>
+                        <h3 class="mb-0">{{ total_documents }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-file-alt fa-2x opacity-75"></i>
+                    </div>
+                </div>
+                <small class="opacity-75">Alle Dokumente im System</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Aktive Dokumente</h6>
+                        <h3 class="mb-0">{{ active_documents }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+                <small class="opacity-75">Momentan aktive Dokumente</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Projekte</h6>
+                        <h3 class="mb-0">{{ total_projects }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-project-diagram fa-2x opacity-75"></i>
+                    </div>
+                </div>
+                <small class="opacity-75">Verfügbare Projekte</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Letzte {{ recent_days }} Tage</h6>
+                        <h3 class="mb-0">{{ recent_documents|length }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-clock fa-2x opacity-75"></i>
+                    </div>
+                </div>
+                <small class="opacity-75">Kürzlich hochgeladen</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Search Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-search me-2"></i>Schnellsuche</h5>
+            </div>
+            <div class="card-body">
+                <form method="get" action="{% url 'document_list' %}" class="row g-3">
+                    <div class="col-md-4">
+                        {{ search_form.search_query }}
+                    </div>
+                    <div class="col-md-2">
+                        {{ search_form.project }}
+                    </div>
+                    <div class="col-md-2">
+                        {{ search_form.doc_type }}
+                    </div>
+                    <div class="col-md-2">
+                        {{ search_form.export_control }}
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-1"></i>Suchen
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="mt-3">
+                    <a href="{% url 'document_list' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-list me-1"></i>Alle Dokumente anzeigen
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Uploads and User Actions -->
+<div class="row">
+    <!-- Recent Uploads -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-upload me-2"></i>Zuletzt hochgeladen ({{ recent_days }} Tage)
+                </h5>
+                <a href="{% url 'document_list' %}" class="btn btn-sm btn-outline-primary">
+                    Alle anzeigen
+                </a>
+            </div>
+            <div class="card-body">
+                {% if recent_documents %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Dokument</th>
+                                <th>Projekt</th>
+                                <th>Version</th>
+                                <th>Typ</th>
+                                <th>Hochgeladen</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for document in recent_documents %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas {{ document.file_icon }} text-muted me-2"></i>
+                                        <div>
+                                            <strong>{{ document.primary_title|truncatechars:40 }}</strong>
+                                            {% if document.barcode_number %}
+                                            <br><small class="text-muted">{{ document.barcode_number }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ document.project.name }}</span>
+                                </td>
+                                <td>{{ document.version }}</td>
+                                <td>{{ document.doc_type.name }}</td>
+                                <td>
+                                    <small>{{ document.uploaded_at|date:"d.m.Y H:i" }}</small>
+                                    <br><small class="text-muted">{{ document.uploaded_by.username }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'document_detail' document.pk %}" 
+                                           class="btn btn-outline-primary" title="Details">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'document_download' document.pk %}" 
+                                           class="btn btn-outline-success" title="Download">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        {% if user.role in 'editor,full_control,admin' %}
+                                        <a href="{% url 'document_edit' document.pk %}" 
+                                           class="btn btn-outline-warning" title="Bearbeiten">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h6 class="text-muted">Keine kürzlichen Uploads</h6>
+                    <p class="text-muted">In den letzten {{ recent_days }} Tagen wurden keine Dokumente hochgeladen.</p>
+                    {% if user.role in 'editor,full_control,admin' %}
+                    <a href="{% url 'document_upload' %}" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Erstes Dokument hochladen
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- User Actions & Features -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Benutzer-Aktionen</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <!-- Single Download -->
+                    <button class="btn btn-outline-primary" onclick="window.location.href='{% url 'document_list' %}'">
+                        <i class="fas fa-download me-2"></i>Einzelner Download
+                    </button>
+                    
+                    <!-- Batch Download -->
+                    <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#batchDownloadModal">
+                        <i class="fas fa-download me-2"></i>Batch Download
+                    </button>
+                    
+                    <!-- Advanced Search -->
+                    <button class="btn btn-outline-info" onclick="toggleAdvancedSearch()">
+                        <i class="fas fa-search-plus me-2"></i>Erweiterte Suche
+                    </button>
+                    
+                    <!-- Export -->
+                    <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#exportModal">
+                        <i class="fas fa-file-export me-2"></i>Export Datensätze
+                    </button>
+                    
+                    {% if user.role in 'editor,full_control,admin' %}
+                    <hr>
+                    <!-- Upload -->
+                    <a href="{% url 'document_upload' %}" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Dokument hochladen
+                    </a>
+                    {% endif %}
+                    
+                    {% if user.role in 'full_control,admin' %}
+                    <!-- Barcode Management -->
+                    <a href="{% url 'barcode_management' %}" class="btn btn-outline-dark">
+                        <i class="fas fa-barcode me-2"></i>Barcode Verwaltung
+                    </a>
+                    {% endif %}
+                    
+                    {% if user.role == 'admin' %}
+                    <hr>
+                    <!-- Admin Features -->
+                    <a href="{% url 'admin_dashboard' %}" class="btn btn-warning">
+                        <i class="fas fa-cog me-2"></i>Admin Dashboard
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Stats -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Schnellstatistiken</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h4 class="text-primary">{{ total_documents }}</h4>
+                            <small class="text-muted">Gesamt</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success">{{ active_documents }}</h4>
+                        <small class="text-muted">Aktiv</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted">Heute:</span>
+                    <span class="badge bg-info" id="todayCount">0</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted">Diese Woche:</span>
+                    <span class="badge bg-success" id="weekCount">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Batch Download Modal -->
+<div class="modal fade" id="batchDownloadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Batch Download</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Wählen Sie die Kriterien für den Batch Download:</p>
+                <form id="batchDownloadForm">
+                    <div class="mb-3">
+                        <label class="form-label">Projekt</label>
+                        <select class="form-select" name="project">
+                            <option value="">Alle Projekte</option>
+                            {% for project in projects %}
+                            <option value="{{ project.id }}">{{ project.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Zeitraum</label>
+                        <select class="form-select" name="timeframe">
+                            <option value="7">Letzte 7 Tage</option>
+                            <option value="30">Letzte 30 Tage</option>
+                            <option value="90">Letzte 3 Monate</option>
+                            <option value="">Alle</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-success">Download starten</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Datensätze exportieren</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Exportieren Sie Dokumentmetadaten in verschiedene Formate:</p>
+                <div class="row">
+                    <div class="col-6">
+                        <button class="btn btn-outline-success w-100">
+                            <i class="fas fa-file-excel me-2"></i>Excel (XLSX)
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button class="btn btn-outline-primary w-100">
+                            <i class="fas fa-file-csv me-2"></i>CSV
+                        </button>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-6">
+                        <button class="btn btn-outline-danger w-100">
+                            <i class="fas fa-file-pdf me-2"></i>PDF
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button class="btn btn-outline-info w-100">
+                            <i class="fas fa-file-code me-2"></i>JSON
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load additional statistics via AJAX
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('{% url 'api_document_stats' %}')
+        .then(response => response.json())
+        .then(data => {
+            // You can update additional stats here
+            console.log('Stats loaded:', data);
+        })
+        .catch(error => console.error('Error loading stats:', error));
+});
+
+function toggleAdvancedSearch() {
+    // Redirect to document list with advanced search expanded
+    window.location.href = '{% url 'document_list' %}?advanced=1';
+}
+
+// Add some interactivity to action buttons
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handlers for export buttons
+    document.querySelectorAll('#exportModal .btn-outline-success, #exportModal .btn-outline-primary, #exportModal .btn-outline-danger, #exportModal .btn-outline-info').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const format = this.textContent.trim().split(' ')[0];
+            alert(`Export als ${format} wird implementiert...`);
+        });
+    });
+});
+</script>
+{% endblock %} 

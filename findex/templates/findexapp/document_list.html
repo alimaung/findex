@@ -1,0 +1,439 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dokumente - FINDEX{% endblock %}
+
+{% block content %}
+<!-- Document Toolbar -->
+<div class="document-toolbar">
+    <div class="d-flex align-items-center gap-3">
+        <!-- View Options -->
+        <div class="d-flex align-items-center">
+            <button class="btn btn-sm btn-outline-secondary me-2" id="viewToggle" data-view="table">
+                <i class="fas fa-table me-1"></i>Ansicht
+            </button>
+            
+            <!-- Search -->
+            <div class="position-relative">
+                <input type="text" class="form-control form-control-sm" placeholder="Datei suchen" 
+                       id="quickSearch" style="min-width: 200px;">
+                <i class="fas fa-search position-absolute" style="right: 10px; top: 50%; transform: translateY(-50%); color: #6c757d;"></i>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="ms-auto d-flex align-items-center gap-2">
+            {% if user.role == 'editor' or user.role == 'full_control' or user.role == 'admin' %}
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#batchModal">
+                <i class="fas fa-edit me-1"></i>Batch Edit
+            </button>
+            {% endif %}
+            
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-download me-1"></i>Download
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" onclick="downloadSelected()">
+                        <i class="fas fa-file-archive me-1"></i>Ausgewählte als ZIP
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportData()">
+                        <i class="fas fa-file-excel me-1"></i>Liste als Excel
+                    </a></li>
+                </ul>
+            </div>
+            
+            <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+                <i class="fas fa-sync-alt me-1"></i>Aktualisieren
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Advanced Filters (Collapsible) -->
+<div class="card mb-3" id="filtersCard" style="display: none;">
+    <div class="card-body">
+        <form method="get" class="filter-form">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Dokumenttyp</label>
+                    {{ search_form.doc_type }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Projekt</label>
+                    {{ search_form.project }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Export Control</label>
+                    {{ search_form.export_control }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="">Alle</option>
+                        <option value="active">Aktiv</option>
+                        <option value="inactive">Inaktiv</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Zeitraum</label>
+                    <div class="input-group">
+                        <input type="date" class="form-control" name="date_from">
+                        <span class="input-group-text">bis</span>
+                        <input type="date" class="form-control" name="date_to">
+                    </div>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search me-1"></i>Filtern
+                    </button>
+                    <a href="{% url 'document_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>Zurücksetzen
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Help Section -->
+<div class="alert alert-info d-flex align-items-center">
+    <i class="fas fa-info-circle me-2"></i>
+    <span>Hilfe zum Öffnen von Dokumenten auf dieser Seite / Help to open documents from this page</span>
+    <button class="btn btn-sm btn-outline-info ms-auto" onclick="toggleFilters()">
+        <i class="fas fa-filter me-1"></i>Erweiterte Filter
+    </button>
+</div>
+
+<!-- Document Table -->
+<div class="document-table">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th style="width: 40px;">
+                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                </th>
+                <th style="width: 60px;">Typ</th>
+                <th style="width: 40px;">Symbol</th>
+                <th>Name</th>
+                <th>Titel German</th>
+                <th>Titel English</th>
+                <th>ARS allocation</th>
+                <th>LICAM</th>
+                <th>CG-Nr.</th>
+                <th>Related Doc</th>
+                <th>Approval Status</th>
+                <th style="width: 120px;">Aktionen</th>
+            </tr>
+        </thead>
+        <tbody id="documentTableBody">
+            {% for document in documents %}
+            <tr data-doc-id="{{ document.id }}">
+                <td>
+                    <input type="checkbox" class="doc-checkbox" value="{{ document.id }}">
+                </td>
+                <td>
+                    <span class="badge bg-secondary">{{ document.doc_type.name }}</span>
+                </td>
+                <td>
+                    <i class="{{ document.file_icon }} file-icon"></i>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <a href="{% url 'document_detail' document.id %}" class="fw-bold text-decoration-none">
+                                {{ document.document_file.name|slice:"20:" }}
+                            </a>
+                            <div class="small text-muted">
+                                Version: {{ document.version }} | {{ document.publish_date|date:"d.m.Y" }}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td>{{ document.title_de|default:"-" }}</td>
+                <td>{{ document.title_en|default:"-" }}</td>
+                <td>{{ document.export_control.code|default:"TBD" }}</td>
+                <td>{{ document.uploaded_by.username|default:"M. Braeuer" }}</td>
+                <td>{{ document.barcode_number|default:document.id }}</td>
+                <td>GP CR 3.1</td>
+                <td>
+                    {% if document.is_active %}
+                    <span class="badge bg-success">Approved</span>
+                    {% else %}
+                    <span class="badge bg-warning">Pending</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="document-actions">
+                        <a href="{% url 'document_download' document.id %}" class="btn btn-sm btn-outline-primary" title="Download">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        {% if user.role == 'editor' or user.role == 'full_control' or user.role == 'admin' %}
+                        <a href="{% url 'document_edit' document.id %}" class="btn btn-sm btn-outline-secondary" title="Bearbeiten">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        {% endif %}
+                        {% if user.role == 'full_control' or user.role == 'admin' %}
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDocument({{ document.id }})" title="Löschen">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="12" class="text-center text-muted py-4">
+                    <i class="fas fa-folder-open fa-3x mb-3"></i>
+                    <div>Keine Dokumente gefunden</div>
+                    {% if user.role == 'editor' or user.role == 'full_control' or user.role == 'admin' %}
+                    <div class="mt-2">
+                        <a href="{% url 'document_upload' %}" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i>Erstes Dokument hochladen
+                        </a>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if documents.has_other_pages %}
+<nav aria-label="Pagination" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if documents.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1">&laquo; Erste</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ documents.previous_page_number }}">Zurück</a>
+        </li>
+        {% endif %}
+        
+        {% for num in documents.paginator.page_range %}
+        {% if documents.number == num %}
+        <li class="page-item active">
+            <span class="page-link">{{ num }}</span>
+        </li>
+        {% elif num > documents.number|add:'-3' and num < documents.number|add:'3' %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+        </li>
+        {% endif %}
+        {% endfor %}
+        
+        {% if documents.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ documents.next_page_number }}">Weiter</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ documents.paginator.num_pages }}">Letzte &raquo;</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Batch Edit Modal -->
+<div class="modal fade" id="batchModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Batch-Bearbeitung</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="batchForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Projekt ändern</label>
+                            <select class="form-select" name="project">
+                                <option value="">Nicht ändern</option>
+                                {% for project in all_projects %}
+                                <option value="{{ project.id }}">{{ project.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Status ändern</label>
+                            <select class="form-select" name="status">
+                                <option value="">Nicht ändern</option>
+                                <option value="true">Aktiv</option>
+                                <option value="false">Inaktiv</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Export Control ändern</label>
+                            <select class="form-select" name="export_control">
+                                <option value="">Nicht ändern</option>
+                                {% for ec in export_controls %}
+                                <option value="{{ ec.id }}">{{ ec.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <span id="selectedCount">0</span> Dokument(e) ausgewählt
+                        </small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" onclick="executeBatchEdit()">Änderungen anwenden</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Quick Search Functionality
+document.getElementById('quickSearch').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('#documentTableBody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+
+// Toggle Filters
+function toggleFilters() {
+    const filtersCard = document.getElementById('filtersCard');
+    const isVisible = filtersCard.style.display !== 'none';
+    filtersCard.style.display = isVisible ? 'none' : 'block';
+}
+
+// Select All Functionality
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.doc-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+    
+    updateSelectedCount();
+}
+
+// Update Selected Count
+function updateSelectedCount() {
+    const selected = document.querySelectorAll('.doc-checkbox:checked').length;
+    const countElement = document.getElementById('selectedCount');
+    if (countElement) {
+        countElement.textContent = selected;
+    }
+}
+
+// Add event listeners to checkboxes
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('.doc-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedCount);
+    });
+});
+
+// Download Selected Documents
+function downloadSelected() {
+    const selected = Array.from(document.querySelectorAll('.doc-checkbox:checked')).map(cb => cb.value);
+    
+    if (selected.length === 0) {
+        alert('Bitte wählen Sie mindestens ein Dokument aus.');
+        return;
+    }
+    
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "batch_download" %}';
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = csrfToken;
+    form.appendChild(csrfInput);
+    
+    selected.forEach(id => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'document_ids';
+        input.value = id;
+        form.appendChild(input);
+    });
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+// Export Data
+function exportData() {
+    window.open('{% url "export_documents" %}', '_blank');
+}
+
+// Execute Batch Edit
+function executeBatchEdit() {
+    const selected = Array.from(document.querySelectorAll('.doc-checkbox:checked')).map(cb => cb.value);
+    
+    if (selected.length === 0) {
+        alert('Bitte wählen Sie mindestens ein Dokument aus.');
+        return;
+    }
+    
+    const formData = new FormData(document.getElementById('batchForm'));
+    formData.append('document_ids', selected.join(','));
+    
+    fetch('{% url "batch_edit" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ein Fehler ist aufgetreten.');
+    });
+}
+
+// Delete Document
+function deleteDocument(docId) {
+    if (confirm('Sind Sie sicher, dass Sie dieses Dokument löschen möchten?')) {
+        fetch(`/documents/${docId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Fehler beim Löschen: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ein Fehler ist aufgetreten.');
+        });
+    }
+}
+</script>
+{% endblock %} 

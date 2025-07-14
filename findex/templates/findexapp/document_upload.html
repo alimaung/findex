@@ -1,0 +1,535 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dokument hochladen - FINDEX{% endblock %}
+
+{% block extra_css %}
+<style>
+.upload-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    z-index: 1050;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.upload-modal-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #dee2e6;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.upload-modal-body {
+    padding: 1.5rem;
+}
+
+.upload-modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #dee2e6;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.file-drop-area {
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-drop-area:hover,
+.file-drop-area.dragover {
+    border-color: #0d6efd;
+    background: #e7f3ff;
+}
+
+.file-info {
+    background: #e9ecef;
+    border-radius: 4px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.step-indicator {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.step-indicator .step {
+    display: inline-block;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #6c757d;
+    color: white;
+    line-height: 30px;
+    margin: 0 0.5rem;
+}
+
+.step-indicator .step.active {
+    background: #0d6efd;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Upload Process -->
+<div class="container mt-4">
+    <!-- Step 1: File Selection -->
+    <div id="step1" class="upload-modal">
+        <div class="upload-modal-header">
+            <h5 class="mb-0">Datei hinzufügen</h5>
+            <button type="button" class="btn-close" onclick="closeUpload()"></button>
+        </div>
+        
+        <div class="upload-modal-body">
+            <div class="step-indicator">
+                <span class="step active">1</span>
+                <span class="step">2</span>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Datei auswählen</label>
+                <div class="file-drop-area" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                    <div>
+                        <strong>Datei auswählen oder hierher ziehen</strong>
+                        <div class="text-muted">Unterstützte Formate: PDF, DOCX, XLSX, PPTX, JPG, PNG, TIFF</div>
+                    </div>
+                </div>
+                <input type="file" id="fileInput" style="display: none;" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.tiff,.bmp">
+            </div>
+            
+            <div id="filePreview" style="display: none;">
+                <div class="file-info">
+                    <div class="d-flex align-items-center">
+                        <i id="fileIcon" class="fas fa-file fa-2x me-3"></i>
+                        <div>
+                            <div class="fw-bold" id="fileName"></div>
+                            <div class="text-muted" id="fileSize"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Alternative: Datei über Windows Explorer hinzufügen</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="useWindowsExplorer">
+                    <label class="form-check-label" for="useWindowsExplorer">
+                        Datei über Windows Explorer anstatt hinzufügen
+                    </label>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Zielordner</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" value="/WI" readonly>
+                    <button class="btn btn-outline-secondary" type="button">Ordner auswählen...</button>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Versionsbemerkungen</label>
+                <textarea class="form-control" rows="3" placeholder="Optional: Bemerkungen zu dieser Version..."></textarea>
+            </div>
+        </div>
+        
+        <div class="upload-modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeUpload()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="nextStep()" id="nextBtn" disabled>OK</button>
+        </div>
+    </div>
+    
+    <!-- Step 2: Document Attributes -->
+    <div id="step2" class="upload-modal" style="display: none;">
+        <div class="upload-modal-header">
+            <h5 class="mb-0">Dokumenteigenschaften</h5>
+            <button type="button" class="btn-close" onclick="closeUpload()"></button>
+        </div>
+        
+        <div class="upload-modal-body">
+            <div class="step-indicator">
+                <span class="step">1</span>
+                <span class="step active">2</span>
+            </div>
+            
+            <form id="documentForm" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="uploaded_file" id="hiddenFileInput">
+                
+                <!-- Required Fields Section -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            {{ form.doc_type }}
+                            <label for="{{ form.doc_type.id_for_label }}" class="required-field">Dokumenttyp</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            {{ form.barcode_number }}
+                            <label for="{{ form.barcode_number.id_for_label }}">Barcodenummer</label>
+                            <div class="form-text">*** Wird definiert</div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-12">
+                        <div class="file-symbol d-flex align-items-center mb-3">
+                            <i id="documentIcon" class="fas fa-file fa-2x me-3"></i>
+                            <div>
+                                <div class="fw-bold">Datei Symbol</div>
+                                <div class="text-muted">Wird automatisch erkannt und dargestellt</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input type="text" class="form-control" id="documentName" name="document_name" readonly>
+                            <label for="documentName" class="required-field">Dokument (verlinkt zum Dok)</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            {{ form.version }}
+                            <label for="{{ form.version.id_for_label }}" class="required-field">Version</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            {{ form.output_date }}
+                            <label for="{{ form.output_date.id_for_label }}" class="required-field">Ausgabedatum</label>
+                        </div>
+                    </div>
+                    
+                    <!-- Multi-language Titles -->
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            {{ form.title_de }}
+                            <label for="{{ form.title_de.id_for_label }}" class="required-field">Titel DE</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            {{ form.title_en }}
+                            <label for="{{ form.title_en.id_for_label }}" class="required-field">Titel EN</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            {{ form.title_fr }}
+                            <label for="{{ form.title_fr.id_for_label }}" class="required-field">Titel FR</label>
+                        </div>
+                        <div class="form-text">** Ein Feld von den drei muss eingegeben sein</div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input type="date" class="form-control" id="publishDate" readonly>
+                            <label for="publishDate">Publish-Date (YYYY-MM-DD)</label>
+                            <div class="form-text">Datum Hochladen, nicht bearbeitbar, wird beim Hochladen vergeben</div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            {{ form.project }}
+                            <label for="{{ form.project.id_for_label }}" class="required-field">Projekt</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            {{ form.export_control }}
+                            <label for="{{ form.export_control.id_for_label }}" class="required-field">Export Control</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-check form-switch mt-3">
+                            <input class="form-check-input" type="checkbox" id="isActive" name="is_active" checked>
+                            <label class="form-check-label" for="isActive">
+                                Status: <span id="statusText">Active</span>
+                            </label>
+                            <div class="form-text">Inactive (yes/no), wenn yes: "Inactive", wenn no: "Active"</div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-12">
+                        <div class="form-floating">
+                            {{ form.description }}
+                            <label for="{{ form.description.id_for_label }}">Beschreibung / Bemerkung</label>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <div class="upload-modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="prevStep()">Zurück</button>
+            <button type="button" class="btn btn-secondary" onclick="closeUpload()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="uploadDocument()">Upload</button>
+        </div>
+    </div>
+</div>
+
+<!-- Overlay -->
+<div id="uploadOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1040;"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedFile = null;
+let currentStep = 1;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Set today's date as publish date
+    document.getElementById('publishDate').value = new Date().toISOString().split('T')[0];
+    
+    // File input change handler
+    document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+    
+    // Drag and drop handlers
+    const dropArea = document.querySelector('.file-drop-area');
+    dropArea.addEventListener('dragover', handleDragOver);
+    dropArea.addEventListener('drop', handleDrop);
+    dropArea.addEventListener('dragleave', handleDragLeave);
+    
+    // Status toggle
+    document.getElementById('isActive').addEventListener('change', function() {
+        document.getElementById('statusText').textContent = this.checked ? 'Active' : 'Inactive';
+    });
+});
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+        selectedFile = file;
+        showFilePreview(file);
+        document.getElementById('nextBtn').disabled = false;
+        
+        // Set document name
+        document.getElementById('documentName').value = file.name;
+    }
+}
+
+function handleDragOver(event) {
+    event.preventDefault();
+    event.currentTarget.classList.add('dragover');
+}
+
+function handleDragLeave(event) {
+    event.currentTarget.classList.remove('dragover');
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    event.currentTarget.classList.remove('dragover');
+    
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+        selectedFile = files[0];
+        showFilePreview(files[0]);
+        document.getElementById('nextBtn').disabled = false;
+        
+        // Set document name
+        document.getElementById('documentName').value = files[0].name;
+    }
+}
+
+function showFilePreview(file) {
+    const preview = document.getElementById('filePreview');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const fileIcon = document.getElementById('fileIcon');
+    const documentIcon = document.getElementById('documentIcon');
+    
+    fileName.textContent = file.name;
+    fileSize.textContent = formatFileSize(file.size);
+    
+    // Set file icon based on extension
+    const extension = file.name.split('.').pop().toLowerCase();
+    const iconClass = getFileIconClass(extension);
+    
+    fileIcon.className = `fas ${iconClass} fa-2x me-3`;
+    documentIcon.className = `fas ${iconClass} fa-2x me-3`;
+    
+    preview.style.display = 'block';
+}
+
+function getFileIconClass(extension) {
+    const iconMap = {
+        'pdf': 'fa-file-pdf',
+        'doc': 'fa-file-word',
+        'docx': 'fa-file-word',
+        'xls': 'fa-file-excel',
+        'xlsx': 'fa-file-excel',
+        'ppt': 'fa-file-powerpoint',
+        'pptx': 'fa-file-powerpoint',
+        'jpg': 'fa-file-image',
+        'jpeg': 'fa-file-image',
+        'png': 'fa-file-image',
+        'tiff': 'fa-file-image',
+        'bmp': 'fa-file-image'
+    };
+    
+    return iconMap[extension] || 'fa-file';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function nextStep() {
+    if (!selectedFile) {
+        alert('Bitte wählen Sie eine Datei aus.');
+        return;
+    }
+    
+    document.getElementById('step1').style.display = 'none';
+    document.getElementById('step2').style.display = 'block';
+    currentStep = 2;
+}
+
+function prevStep() {
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('step1').style.display = 'block';
+    currentStep = 1;
+}
+
+function closeUpload() {
+    window.location.href = '{% url "document_list" %}';
+}
+
+function uploadDocument() {
+    if (!selectedFile) {
+        alert('Keine Datei ausgewählt.');
+        return;
+    }
+    
+    // Validate required fields
+    const requiredFields = ['doc_type', 'version', 'output_date', 'project', 'export_control'];
+    const titleFields = ['title_de', 'title_en', 'title_fr'];
+    
+    let isValid = true;
+    let hasTitle = false;
+    
+    // Check required fields
+    requiredFields.forEach(fieldName => {
+        const field = document.querySelector(`[name="${fieldName}"]`);
+        if (!field || !field.value.trim()) {
+            field?.classList.add('is-invalid');
+            isValid = false;
+        } else {
+            field?.classList.remove('is-invalid');
+        }
+    });
+    
+    // Check at least one title is provided
+    titleFields.forEach(fieldName => {
+        const field = document.querySelector(`[name="${fieldName}"]`);
+        if (field && field.value.trim()) {
+            hasTitle = true;
+        }
+    });
+    
+    if (!hasTitle) {
+        titleFields.forEach(fieldName => {
+            const field = document.querySelector(`[name="${fieldName}"]`);
+            field?.classList.add('is-invalid');
+        });
+        isValid = false;
+        alert('Mindestens ein Titel (DE, EN oder FR) muss eingegeben werden.');
+    }
+    
+    if (!isValid) {
+        alert('Bitte füllen Sie alle Pflichtfelder aus.');
+        return;
+    }
+    
+    // Create FormData and submit
+    const formData = new FormData();
+    formData.append('document_file', selectedFile);
+    
+    // Add form fields
+    const form = document.getElementById('documentForm');
+    const formElements = form.querySelectorAll('input, select, textarea');
+    
+    formElements.forEach(element => {
+        if (element.name && element.type !== 'file') {
+            if (element.type === 'checkbox') {
+                formData.append(element.name, element.checked);
+            } else {
+                formData.append(element.name, element.value);
+            }
+        }
+    });
+    
+    // Add CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    
+    // Show loading
+    const uploadBtn = event.target;
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Wird hochgeladen...';
+    
+    // Submit
+    fetch('{% url "document_upload" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Dokument erfolgreich hochgeladen!');
+            window.location.href = '{% url "document_list" %}';
+        } else {
+            alert('Fehler beim Hochladen: ' + (data.message || 'Unbekannter Fehler'));
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = 'Upload';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ein Fehler ist aufgetreten beim Hochladen.');
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = 'Upload';
+    });
+}
+</script>
+{% endblock %} 

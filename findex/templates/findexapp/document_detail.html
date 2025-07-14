@@ -1,0 +1,480 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ document.primary_title }} - FINDEX{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'document_list' %}">Dokumente</a></li>
+                <li class="breadcrumb-item active">{{ document.primary_title|truncatechars:30 }}</li>
+            </ol>
+        </nav>
+        <h1 class="mb-2">
+            <i class="fas {{ document.file_icon }} me-2"></i>{{ document.primary_title }}
+        </h1>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+            <span class="badge bg-primary fs-6">{{ document.project.name }}</span>
+            <span class="badge bg-secondary fs-6">{{ document.doc_type.name }}</span>
+            <span class="badge bg-warning text-dark fs-6">{{ document.export_control.code }}</span>
+            {% if document.is_active %}
+                <span class="badge bg-success fs-6">Aktiv</span>
+            {% else %}
+                <span class="badge bg-danger fs-6">Inaktiv</span>
+            {% endif %}
+        </div>
+        <p class="text-muted mb-0">Version {{ document.version }} • {{ document.file_type }} • {{ document.file_size|filesizeformat }}</p>
+    </div>
+    <div class="btn-group">
+        <a href="{% url 'document_download' document.pk %}" class="btn btn-success">
+            <i class="fas fa-download me-2"></i>Download
+        </a>
+        {% if user.role in 'editor,full_control,admin' %}
+        <a href="{% url 'document_edit' document.pk %}" class="btn btn-warning">
+            <i class="fas fa-edit me-2"></i>Bearbeiten
+        </a>
+        <a href="{% url 'document_delete' document.pk %}" class="btn btn-danger btn-delete"
+           data-document-title="{{ document.primary_title }}">
+            <i class="fas fa-trash me-2"></i>Löschen
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <!-- Main Content -->
+    <div class="col-lg-8">
+        <!-- Document Preview/Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Dokumentinformationen</h5>
+            </div>
+            <div class="card-body">
+                <!-- File Preview Area -->
+                <div class="text-center mb-4 p-4 bg-light rounded">
+                    <div class="document-icon file-icon-{{ document.file_type|lower }} mx-auto mb-3" 
+                         style="width: 80px; height: 80px; font-size: 2.5rem;">
+                        <i class="fas {{ document.file_icon }}"></i>
+                    </div>
+                    <h6>{{ document.document_file.name|basename }}</h6>
+                    <p class="text-muted mb-3">
+                        {{ document.file_type }} • {{ document.file_size|filesizeformat }}
+                        {% if document.barcode_number %}
+                        <br><i class="fas fa-barcode me-1"></i>{{ document.barcode_number }}
+                        {% endif %}
+                    </p>
+                    <div class="btn-group">
+                        <a href="{% url 'document_download' document.pk %}" class="btn btn-primary">
+                            <i class="fas fa-download me-2"></i>Herunterladen
+                        </a>
+                        {% if document.file_type == 'PDF' %}
+                        <button class="btn btn-outline-primary" onclick="previewDocument()">
+                            <i class="fas fa-eye me-2"></i>Vorschau
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Titles -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <h6 class="border-bottom pb-2 mb-3">Titel</h6>
+                    </div>
+                    {% if document.title_de %}
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-flag me-1"></i>Deutsch
+                        </label>
+                        <p class="form-control-plaintext">{{ document.title_de }}</p>
+                    </div>
+                    {% endif %}
+                    {% if document.title_en %}
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-flag me-1"></i>English
+                        </label>
+                        <p class="form-control-plaintext">{{ document.title_en }}</p>
+                    </div>
+                    {% endif %}
+                    {% if document.title_fr %}
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-flag me-1"></i>Français
+                        </label>
+                        <p class="form-control-plaintext">{{ document.title_fr }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Description -->
+                {% if document.description %}
+                <div class="mb-3">
+                    <h6 class="border-bottom pb-2 mb-3">Beschreibung</h6>
+                    <p class="form-control-plaintext">{{ document.description }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Document History/Activities -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Dokumentverlauf</h5>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-success"></div>
+                        <div class="timeline-content">
+                            <h6 class="timeline-title">Dokument hochgeladen</h6>
+                            <p class="timeline-text text-muted">
+                                Von {{ document.uploaded_by.get_full_name|default:document.uploaded_by.username }}
+                                am {{ document.uploaded_at|date:"d.m.Y H:i" }}
+                            </p>
+                        </div>
+                    </div>
+                    {% if document.updated_at != document.uploaded_at %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-warning"></div>
+                        <div class="timeline-content">
+                            <h6 class="timeline-title">Dokument aktualisiert</h6>
+                            <p class="timeline-text text-muted">
+                                Letzte Änderung am {{ document.updated_at|date:"d.m.Y H:i" }}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Document Metadata -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-tags me-2"></i>Metadaten</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td class="fw-bold">Dokumenttyp:</td>
+                        <td>{{ document.doc_type.name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">Version:</td>
+                        <td>{{ document.version }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">Projekt:</td>
+                        <td>
+                            <a href="{% url 'project_documents' document.project.id %}" class="text-decoration-none">
+                                {{ document.project.name }}
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">Export Control:</td>
+                        <td>{{ document.export_control.code }} - {{ document.export_control.name }}</td>
+                    </tr>
+                    {% if document.output_date %}
+                    <tr>
+                        <td class="fw-bold">Ausgabedatum:</td>
+                        <td>{{ document.output_date|date:"d.m.Y" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if document.barcode_number %}
+                    <tr>
+                        <td class="fw-bold">Barcode:</td>
+                        <td>
+                            <code>{{ document.barcode_number }}</code>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard('{{ document.barcode_number }}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td class="fw-bold">Status:</td>
+                        <td>
+                            {% if document.is_active %}
+                                <span class="badge bg-success">Aktiv</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inaktiv</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">Publish Date:</td>
+                        <td>{{ document.publish_date|date:"d.m.Y" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- File Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-file me-2"></i>Datei-Information</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td class="fw-bold">Dateiname:</td>
+                        <td>{{ document.document_file.name|basename }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">Dateigröße:</td>
+                        <td>{{ document.file_size|filesizeformat }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">Dateityp:</td>
+                        <td>{{ document.file_type }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">Hochgeladen:</td>
+                        <td>{{ document.uploaded_at|date:"d.m.Y H:i" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">Hochgeladen von:</td>
+                        <td>{{ document.uploaded_by.get_full_name|default:document.uploaded_by.username }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>Schnellaktionen</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'document_download' document.pk %}" class="btn btn-outline-success">
+                        <i class="fas fa-download me-2"></i>Download
+                    </a>
+                    
+                    <button class="btn btn-outline-primary" onclick="shareDocument()">
+                        <i class="fas fa-share me-2"></i>Teilen
+                    </button>
+                    
+                    <button class="btn btn-outline-info" onclick="copyLink()">
+                        <i class="fas fa-link me-2"></i>Link kopieren
+                    </button>
+                    
+                    {% if user.role in 'editor,full_control,admin' %}
+                    <hr>
+                    <a href="{% url 'document_edit' document.pk %}" class="btn btn-outline-warning">
+                        <i class="fas fa-edit me-2"></i>Bearbeiten
+                    </a>
+                    
+                    <button class="btn btn-outline-secondary" onclick="duplicateDocument()">
+                        <i class="fas fa-copy me-2"></i>Duplizieren
+                    </button>
+                    
+                    <a href="{% url 'document_delete' document.pk %}" 
+                       class="btn btn-outline-danger btn-delete"
+                       data-document-title="{{ document.primary_title }}">
+                        <i class="fas fa-trash me-2"></i>Löschen
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Related Documents -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-sitemap me-2"></i>Verwandte Dokumente</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">Dokumente aus dem gleichen Projekt:</p>
+                <!-- This would be populated with related documents -->
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item border-0 px-0">
+                        <small class="text-muted">Funktion wird implementiert...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PDF Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Dokumentvorschau: {{ document.primary_title }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Lädt...</span>
+                    </div>
+                    <p class="mt-2">Vorschau wird geladen...</p>
+                </div>
+                <embed id="previewEmbed" src="" type="application/pdf" 
+                       width="100%" height="600px" style="display: none;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                <a href="{% url 'document_download' document.pk %}" class="btn btn-primary">
+                    <i class="fas fa-download me-2"></i>Herunterladen
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Share Modal -->
+<div class="modal fade" id="shareModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Dokument teilen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Dokumentlink:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" readonly 
+                               value="{{ request.build_absolute_uri }}" id="shareLink">
+                        <button class="btn btn-outline-secondary" onclick="copyToClipboard('shareLink')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Benutzer benötigen entsprechende Berechtigungen, um auf das Dokument zugreifen zu können.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 20px;
+}
+
+.timeline-item:not(:last-child):before {
+    content: '';
+    position: absolute;
+    left: -22px;
+    top: 20px;
+    height: calc(100% - 10px);
+    width: 2px;
+    background-color: #dee2e6;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -26px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.timeline-title {
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+}
+
+.timeline-text {
+    font-size: 0.8rem;
+    margin-bottom: 0;
+}
+
+.document-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function previewDocument() {
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    const embed = document.getElementById('previewEmbed');
+    
+    modal.show();
+    
+    // Load PDF in embed (simplified approach)
+    embed.src = '{% url "document_download" document.pk %}';
+    embed.style.display = 'block';
+    document.querySelector('.spinner-border').style.display = 'none';
+    document.querySelector('.spinner-border').nextElementSibling.style.display = 'none';
+}
+
+function shareDocument() {
+    const modal = new bootstrap.Modal(document.getElementById('shareModal'));
+    modal.show();
+}
+
+function copyLink() {
+    const url = window.location.href;
+    copyToClipboard(url, 'Link wurde in die Zwischenablage kopiert!');
+}
+
+function copyToClipboard(text, message = 'In Zwischenablage kopiert!') {
+    if (typeof text === 'string') {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast(message, 'success', 2000);
+        });
+    } else {
+        // If text is an element ID
+        const element = document.getElementById(text);
+        if (element) {
+            navigator.clipboard.writeText(element.value).then(() => {
+                showToast(message, 'success', 2000);
+            });
+        }
+    }
+}
+
+function duplicateDocument() {
+    if (confirm('Möchten Sie dieses Dokument duplizieren? Sie werden zum Upload-Formular weitergeleitet.')) {
+        // Redirect to upload with pre-filled data (would need backend support)
+        showToast('Duplikationsfunktion wird implementiert...', 'info');
+    }
+}
+
+// Auto-hide alerts after 5 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert-dismissible');
+        alerts.forEach(alert => {
+            const closeBtn = alert.querySelector('.btn-close');
+            if (closeBtn) {
+                closeBtn.click();
+            }
+        });
+    }, 5000);
+});
+</script>
+{% endblock %} 
